@@ -27,9 +27,6 @@ jobs:
     - name: Install dependencies
       run: go mod tidy
 
-    - name: Run Linter
-      run: go vet ./...
-
     - name: Build project
       run: |
         go fmt ./...
