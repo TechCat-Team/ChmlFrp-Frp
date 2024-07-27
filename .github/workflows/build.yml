@@ -12,14 +12,8 @@ jobs:
 
     - name: Set up Go
       uses: actions/setup-go@v2
-
-    - name: Install dependencies
-      run: go mod tidy
-
-    - name: Build project
-      run: |
-        go fmt ./...
-        env CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o bin/frps ./cmd/frps
+      with:
+        go-version: '1.20.10'
 
     - name: Cross compile
       run: make -f ./Makefile.cross-compiles
