@@ -13,15 +13,18 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v2
       with:
-        go-version: '1.20'
+        go-version: '1.20.10'
 
     - name: Install dependencies
       run: go mod tidy
     
+    - name: Run Linter
+      run: go vet ./...
+
     - name: Build project
       run: |
-        make
-        ./bin/frps --version
+        go fmt ./...
+        env CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o bin/frps ./cmd/frps
 
     - name: Cross compile
       run: make -f ./Makefile.cross-compiles
