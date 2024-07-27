@@ -1,0 +1,133 @@
+{
+    "version": "ChmlFrp-0.51.2_24715",
+    "bind_port": 7000,
+    "bind_udp_port": 7001,
+    "vhost_http_port": 81,
+    "vhost_https_port": 444,
+    "tcpmux_httpconnect_port": 0,
+    "kcp_bind_port": 7000,
+    "quic_bind_port": 0,
+    "subdomain_host": "",
+    "max_pool_count": 100000000,
+    "max_ports_per_client": 0,
+    "heart_beat_timeout": 90,
+    "total_traffic_in": 0,
+    "total_traffic_out": 0,
+    "cur_conns": 0,
+    "client_counts": 0,
+    "proxy_type_count": {},
+    "cpu_usage": 2.848756906077348, //CPU占用率
+    "cpu_info": "Intel(R) Xeon(R) CPU E5-2689 0 @ 2.60GHz", //CPU型号
+    "num_cores": 1, //逻辑处理器数量
+    "memory_total": 34294153216, //总内存
+    "memory_used": 16336879616, //已用内存
+    "storage_total": 500104687616, //总储存
+    "storage_used": 488072110080, //已用储存
+    "upload_bandwidth": 8649833891, //
+    "download_bandwidth": 7911887994
+}
+
+{
+    "version": "ChmlFrp-0.51.2_24715",
+    "bind_port": 7000,
+    "bind_udp_port": 7001,
+    "vhost_http_port": 81,
+    "vhost_https_port": 444,
+    "tcpmux_httpconnect_port": 0,
+    "kcp_bind_port": 7000,
+    "quic_bind_port": 0,
+    "subdomain_host": "",
+    "max_pool_count": 100000000,
+    "max_ports_per_client": 0,
+    "heart_beat_timeout": 90,
+    "total_traffic_in": 0,
+    "total_traffic_out": 0,
+    "cur_conns": 0,
+    "client_counts": 0,
+    "proxy_type_counts": {},
+    "cpu_usage": 2.5839339075408683,
+    "cpu_info": "Intel(R) Xeon(R) CPU E5-2689 0 @ 2.60GHz",
+    "num_cores": 16,
+    "memory_total": 34294153216,
+    "memory_used": 16881901568,
+    "storage_total": 500104687616,
+    "storage_used": 488669487104,
+    "upload_bandwidth": 49253.46146663624,
+    "download_bandwidth": 195266.9328535251
+}
+
+{
+    "version": "ChmlFrp-0.51.2_24715", //frps版本
+    "bind_port": 7000, //frps连接端口
+    "bind_udp_port": 7001, //frpsUDP端口
+    "vhost_http_port": 81, //frpshttp端口
+    "vhost_https_port": 444, //frpshttps端口
+    "tcpmux_httpconnect_port": 0,
+    "kcp_bind_port": 7000, //kcp端口
+    "quic_bind_port": 0,
+    "subdomain_host": "",
+    "max_pool_count": 100000000,
+    "max_ports_per_client": 0,
+    "heart_beat_timeout": 90,
+    "total_traffic_in": 0,
+    "total_traffic_out": 0,
+    "cur_conns": 0,
+    "client_counts": 0,
+    "proxy_type_counts": {},
+    "cpu_usage": 15.2024350581662, //CPU 使用率，单位%
+    "cpu_info": "Intel(R) Xeon(R) CPU E5-2689 0 @ 2.60GHz", //CPU 的详细信息
+    "num_cores": 16, //CPU 的逻辑处理器数量
+    "memory_total": 34294153216, //总内存容量，单位为字节
+    "memory_used": 12085559296, //已使用的内存量，单位为字节
+    "page_tables": 0, //页表的数量，通常用于虚拟内存管理。
+    "storage_total": 500104687616, //总存储容量(frps所在盘)，单位为字节
+    "storage_used": 483666210816, //已使用的存储量(frps所在盘)，单位为字节
+    "upload_bandwidth": 11087335.195215184, //上传带宽，单位为比特每秒 (bps)
+    "download_bandwidth": 234234.20941231068, //下载带宽，单位为比特每秒 (bps)
+    "load1": 0.6396446829654128, //最近 1 分钟的系统负载
+    "load5": 0.13222836942705918, //最近 5 分钟的系统负载
+    "load15": 0.044321215960827054, //最近 15 分钟的系统负载
+    "uptime_days": 0, //系统运行时间
+    "sent_packets": 5463054, //已发送的网络数据包数量
+    "recv_packets": 1853270, //已接收的网络数据包数量
+    "active_conn": 125, //活跃的网络连接数
+    "passive_conn": 2 //被动的网络连接数（监听状态但没有数据传输的连接数）
+}
+
+{
+    "proxies": [
+        {
+            "name": "7TwtJKP6",
+            "conf": {
+                "name": "7TwtJKP6",
+                "type": "tcp",
+                "use_encryption": false,
+                "use_compression": false,
+                "group": "",
+                "group_key": "",
+                "proxy_protocol_version": "",
+                "bandwidth_limit": "",
+                "bandwidth_limit_mode": "client",
+                "metas": null,
+                "local_ip": "127.0.0.1",
+                "local_port": 0,
+                "plugin": "",
+                "PluginParams": null,
+                "health_check_type": "",
+                "health_check_timeout_s": 0,
+                "health_check_max_failed": 0,
+                "health_check_interval_s": 0,
+                "health_check_url": "",
+                "HealthCheckAddr": "",
+                "remote_port": 62574
+            },
+            "client_version": "ChmlFrp-0.51.2_24715",
+            "today_traffic_in": 0,
+            "today_traffic_out": 0,
+            "cur_conns": 0,
+            "last_start_time": "07-18 22:46:46",
+            "last_close_time": "",
+            "status": "online"
+        }
+    ]
+}

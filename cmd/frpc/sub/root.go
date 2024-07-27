@@ -16,12 +16,9 @@ package sub
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io/fs"
-	"io/ioutil"
 	"net"
-	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -44,8 +41,6 @@ import (
 const (
 	CfgFileTypeIni = iota
 	CfgFileTypeCmd
-	// 当前frp客户端版本
-	ChmlFrp_version_frpc = "1.0.0"
 )
 
 var (
@@ -130,40 +125,6 @@ var rootCmd = &cobra.Command{
 		log.Info("欢迎使用ChmlFrp映射客户端!")
 		var wg sync.WaitGroup
 
-		// 请求api获取最新版本号
-		resp, err := http.Get("https://panel.chmlfrp.cn/api/frpb.php")
-		if err != nil {
-			log.Warn("无法获取版本信息:", err)
-			return nil
-		}
-		defer resp.Body.Close()
-
-		// 读取HTTP响应
-		body, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			log.Warn("无法读取版本信息API响应体:", err)
-			return nil
-		}
-
-		// 解析JSON响应
-		var apiResponse APIResponse
-		err = json.Unmarshal(body, &apiResponse)
-		if err != nil {
-			log.Warn("无法解析版本信息APIJSON响应:", err)
-			return nil
-		}
-
-		// 提取版本信息
-		latestVersion := apiResponse.Version
-
-		// 比较版本信息
-		if latestVersion != ChmlFrp_version_frpc {
-			version_text := "\x1b[1;31m客户端版本过低，当前版本为：" + ChmlFrp_version_frpc + "，最新版本为：" + latestVersion + "\x1b[0m"
-			log.Warn(version_text)
-		} else {
-			log.Info("当前客户端版本为最新版(%v)", ChmlFrp_version_frpc)
-		}
-
 		// If cfgDir is not empty, run multiple frpc service for each config file in cfgDir.
 		// Note that it's only designed for testing. It's not guaranteed to be stable.
 		if cfgDir != "" {
@@ -172,7 +133,7 @@ var rootCmd = &cobra.Command{
 		}
 
 		log.Info("从ChmlFrp API获取配置文件...")
-		s, err := api.NewService("https://panel.chmlfrp.cn/api/cfg.php")
+		s, err := api.NewService("https://cf-v1.uapis.cn/api/cfg.php")
 
 		if err != nil {
 			log.Warn("初始化API服务失败，错误: %s", err)

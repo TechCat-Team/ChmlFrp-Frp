@@ -17,12 +17,20 @@ package server
 import (
 	"encoding/json"
 	"net/http"
+	"sync"
+	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/shirou/gopsutil/cpu"
+	"github.com/shirou/gopsutil/disk"
+	"github.com/shirou/gopsutil/host"
+	"github.com/shirou/gopsutil/load"
+	"github.com/shirou/gopsutil/mem"
+	"github.com/shirou/gopsutil/net"
 
 	"github.com/fatedier/frp/pkg/config"
 	"github.com/fatedier/frp/pkg/consts"
-	"github.com/fatedier/frp/pkg/metrics/mem"
+	frpMem "github.com/fatedier/frp/pkg/metrics/mem"
 	"github.com/fatedier/frp/pkg/util/log"
 	"github.com/fatedier/frp/pkg/util/version"
 )
@@ -52,7 +60,79 @@ type serverInfoResp struct {
 	TotalTrafficOut int64            `json:"total_traffic_out"`
 	CurConns        int64            `json:"cur_conns"`
 	ClientCounts    int64            `json:"client_counts"`
-	ProxyTypeCounts map[string]int64 `json:"proxy_type_count"`
+	ProxyTypeCounts map[string]int64 `json:"proxy_type_counts"`
+
+	CPUUsage          float64 `json:"cpu_usage"`
+	CPUInfo           string  `json:"cpu_info"`
+	NumCores          int     `json:"num_cores"`
+	MemoryTotal       uint64  `json:"memory_total"`
+	MemoryUsed        uint64  `json:"memory_used"`
+	PageTables        uint64  `json:"page_tables"`
+	StorageTotal      uint64  `json:"storage_total"`
+	StorageUsed       uint64  `json:"storage_used"`
+	UploadBandwidth   float64 `json:"upload_bandwidth"`
+	DownloadBandwidth float64 `json:"download_bandwidth"`
+
+	Load1         float64 `json:"load1"`
+	Load5         float64 `json:"load5"`
+	Load15        float64 `json:"load15"`
+	UptimeSeconds uint64  `json:"uptime_seconds"`
+	SentPackets   uint64  `json:"sent_packets"`
+	RecvPackets   uint64  `json:"recv_packets"`
+	ActiveConn    int     `json:"active_conn"`
+	PassiveConn   int     `json:"passive_conn"`
+}
+
+var (
+	prevNetIO                net.IOCountersStat
+	prevTimestamp            time.Time
+	currentBandwidthMutex    sync.Mutex
+	currentUploadBandwidth   float64
+	currentDownloadBandwidth float64
+)
+
+func init() {
+	netIO, _ := net.IOCounters(false)
+	prevNetIO = netIO[0]
+	prevTimestamp = time.Now()
+
+	go func() {
+		for {
+			time.Sleep(1 * time.Second)
+			updateBandwidth()
+		}
+	}()
+}
+
+func updateBandwidth() {
+	netIO, _ := net.IOCounters(false)
+	currentNetIO := netIO[0]
+	currentTimestamp := time.Now()
+
+	duration := currentTimestamp.Sub(prevTimestamp).Seconds()
+	uploadBandwidth := float64(currentNetIO.BytesSent-prevNetIO.BytesSent) * 8 / duration
+	downloadBandwidth := float64(currentNetIO.BytesRecv-prevNetIO.BytesRecv) * 8 / duration
+
+	currentBandwidthMutex.Lock()
+	currentUploadBandwidth = uploadBandwidth
+	currentDownloadBandwidth = downloadBandwidth
+	currentBandwidthMutex.Unlock()
+
+	prevNetIO = currentNetIO
+	prevTimestamp = currentTimestamp
+}
+
+func getNetworkStats() (activeConn, passiveConn int) {
+	conns, _ := net.Connections("all")
+	for _, conn := range conns {
+		switch conn.Status {
+		case "ESTABLISHED":
+			activeConn++
+		case "SYN_SENT":
+			passiveConn++
+		}
+	}
+	return
 }
 
 // /healthz
@@ -72,7 +152,40 @@ func (svr *Service) APIServerInfo(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	log.Info("Http request: [%s]", r.URL.Path)
-	serverStats := mem.StatsCollector.GetServer()
+	serverStats := frpMem.StatsCollector.GetServer()
+
+	// Get CPU usage
+	cpuUsage, _ := cpu.Percent(0, false)
+
+	// Get CPU info
+	cpuInfo, _ := cpu.Info()
+
+	// Get logical CPU count
+	numCores, _ := cpu.Counts(true)
+
+	// Get memory info
+	vMem, _ := mem.VirtualMemory()
+
+	// Get storage info
+	diskInfo, _ := disk.Usage("/")
+
+	// Get load averages
+	loadAvg, _ := load.Avg()
+
+	// Get uptime
+	uptime, _ := host.Uptime()
+
+	// Get current bandwidth
+	currentBandwidthMutex.Lock()
+	uploadBandwidth := currentUploadBandwidth
+	downloadBandwidth := currentDownloadBandwidth
+	sentPackets := prevNetIO.PacketsSent
+	recvPackets := prevNetIO.PacketsRecv
+	currentBandwidthMutex.Unlock()
+
+	// Get network connections stats
+	activeConn, passiveConn := getNetworkStats()
+
 	svrResp := serverInfoResp{
 		Version:               version.Full(),
 		BindPort:              svr.cfg.BindPort,
@@ -94,6 +207,26 @@ func (svr *Service) APIServerInfo(w http.ResponseWriter, r *http.Request) {
 		CurConns:        serverStats.CurConns,
 		ClientCounts:    serverStats.ClientCounts,
 		ProxyTypeCounts: serverStats.ProxyTypeCounts,
+
+		CPUUsage:          cpuUsage[0],
+		CPUInfo:           cpuInfo[0].ModelName,
+		NumCores:          numCores,
+		MemoryTotal:       vMem.Total,
+		MemoryUsed:        vMem.Used,
+		PageTables:        vMem.PageTables,
+		StorageTotal:      diskInfo.Total,
+		StorageUsed:       diskInfo.Used,
+		UploadBandwidth:   uploadBandwidth,
+		DownloadBandwidth: downloadBandwidth,
+
+		Load1:         loadAvg.Load1,
+		Load5:         loadAvg.Load5,
+		Load15:        loadAvg.Load15,
+		UptimeSeconds: uptime,
+		SentPackets:   sentPackets,
+		RecvPackets:   recvPackets,
+		ActiveConn:    activeConn,
+		PassiveConn:   passiveConn,
 	}
 
 	buf, _ := json.Marshal(&svrResp)
@@ -201,7 +334,7 @@ func (svr *Service) APIProxyByType(w http.ResponseWriter, r *http.Request) {
 }
 
 func (svr *Service) getProxyStatsByType(proxyType string) (proxyInfos []*ProxyStatsInfo) {
-	proxyStats := mem.StatsCollector.GetProxiesByType(proxyType)
+	proxyStats := frpMem.StatsCollector.GetProxiesByType(proxyType)
 	proxyInfos = make([]*ProxyStatsInfo, 0, len(proxyStats))
 	for _, ps := range proxyStats {
 		proxyInfo := &ProxyStatsInfo{}
@@ -274,7 +407,7 @@ func (svr *Service) APIProxyByTypeAndName(w http.ResponseWriter, r *http.Request
 
 func (svr *Service) getProxyStatsByTypeAndName(proxyType string, proxyName string) (proxyInfo GetProxyStatsResp, code int, msg string) {
 	proxyInfo.Name = proxyName
-	ps := mem.StatsCollector.GetProxiesByTypeAndName(proxyType, proxyName)
+	ps := frpMem.StatsCollector.GetProxiesByTypeAndName(proxyType, proxyName)
 	if ps == nil {
 		code = 404
 		msg = "no proxy info found"
@@ -332,7 +465,7 @@ func (svr *Service) APIProxyTraffic(w http.ResponseWriter, r *http.Request) {
 
 	trafficResp := GetProxyTrafficResp{}
 	trafficResp.Name = name
-	proxyTrafficInfo := mem.StatsCollector.GetProxyTraffic(name)
+	proxyTrafficInfo := frpMem.StatsCollector.GetProxyTraffic(name)
 
 	if proxyTrafficInfo == nil {
 		res.Code = 404
