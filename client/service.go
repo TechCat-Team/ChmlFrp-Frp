@@ -132,7 +132,15 @@ func (svr *Service) Run(ctx context.Context) error {
 		conn, cm, err := svr.login()
 		if err != nil {
 			xl.Warn("无法连接至服务器: %v", err)
-			xl.Warn("此节点可能已离线，您可以尝试更换节点以解决此问题")
+			if strings.Contains(err.Error(), "i/o timeout") {
+				xl.Warn("此节点可能已离线，或您的网络环境连接不上这个节点，您可以尝试更换节点以解决此问题")
+			} else if strings.Contains(err.Error(), "invalid port") {
+				xl.Warn("无效的节点端口，如果您没有随意更改配置文件，请前往交流群提交问题。您可以暂时更换节点解决")
+			} else if strings.Contains(err.Error(), "token in login doesn't match token from configuration") {
+				xl.Warn("节点TOKEN错误，如果您没有随意更改配置文件，请前往交流群提交问题。您可以暂时更换节点解决")
+			} else if strings.Contains(err.Error(), "i/o deadline reached") {
+				xl.Warn("此节点可能已离线，您可以尝试更换节点以解决此问题")
+			}
 
 			// 直接结束进程
 			os.Exit(1)

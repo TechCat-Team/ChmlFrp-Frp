@@ -133,7 +133,7 @@ var rootCmd = &cobra.Command{
 		}
 
 		log.Info("从ChmlFrp API获取配置文件...")
-		s, err := api.NewService("https://panel.chmlfrp.cn/api/cfg.php")
+		s, err := api.NewService("https://cf-v1.uapis.cn/api/cfg.php")
 
 		if err != nil {
 			log.Warn("初始化API服务失败，错误: %s", err)
