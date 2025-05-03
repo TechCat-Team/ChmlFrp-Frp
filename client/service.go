@@ -133,13 +133,17 @@ func (svr *Service) Run(ctx context.Context) error {
 		if err != nil {
 			xl.Warn("无法连接至服务器: %v", err)
 			if strings.Contains(err.Error(), "i/o timeout") {
-				xl.Warn("此节点可能已离线，或您的网络环境连接不上这个节点，您可以尝试更换节点以解决此问题")
+				xl.Warn("请尝试将配置文件中tls_enable = false改为tls_enable = true再启动，如果依旧无法启动，则为上层防火墙拦截，请更换设备。")
 			} else if strings.Contains(err.Error(), "invalid port") {
 				xl.Warn("无效的节点端口，如果您没有随意更改配置文件，请前往交流群提交问题。您可以暂时更换节点解决")
 			} else if strings.Contains(err.Error(), "token in login doesn't match token from configuration") {
 				xl.Warn("节点TOKEN错误，如果您没有随意更改配置文件，请前往交流群提交问题。您可以暂时更换节点解决")
 			} else if strings.Contains(err.Error(), "i/o deadline reached") {
-				xl.Warn("此节点可能已离线，您可以尝试更换节点以解决此问题")
+				xl.Warn("请尝试将配置文件中tls_enable = false改为tls_enable = true再启动，如果依旧无法启动，则为上层防火墙拦截，请更换设备。")
+			} else if strings.Contains(err.Error(), "dial tcp 127.0.0.1:7000: connectex: No connection could be made because the target machine actively refused it.") {
+				xl.Warn("您尚未更改配置文件，请更改配置文件(frpc.ini)后再启动隧道。更改完后需要按Ctrl+S保存。")
+			} else if strings.Contains(err.Error(), "connectex: No connection could be made because the target machine actively refused it.") {
+				xl.Warn("此节点可能已离线，或您的网络连不上此节点，请更换节点后再启动。如若更换节点无用，请加入交流群询问。")
 			}
 
 			// 直接结束进程
@@ -185,15 +189,13 @@ func (svr *Service) Run(ctx context.Context) error {
 
 func (svr *Service) keepControllerWorking() {
 	xl := xlog.FromContextSafe(svr.ctx)
-	maxDelayTime := 20 * time.Second
-	delayTime := time.Second
 
-	// if frpc reconnect frps, we need to limit retry times in 1min
-	// current retry logic is sleep 0s, 0s, 0s, 1s, 2s, 4s, 8s, ...
-	// when exceed 1min, we will reset delay and counts
-	cutoffTime := time.Now().Add(time.Minute)
-	reconnectDelay := time.Second
-	reconnectCounts := 1
+	reconnectDelays := []time.Duration{
+		5 * time.Second,
+		10 * time.Second,
+		20 * time.Second,
+	}
+	reconnectCounts := 0
 
 	for {
 		<-svr.ctl.ClosedDoneCh()
@@ -201,23 +203,15 @@ func (svr *Service) keepControllerWorking() {
 			return
 		}
 
-		// the first three attempts with a low delay
-		if reconnectCounts > 3 {
-			util.RandomSleep(reconnectDelay, 0.9, 1.1)
-			xl.Info("等待 %v 后重连...", reconnectDelay)
-			reconnectDelay *= 2
-		} else {
-			util.RandomSleep(time.Second, 0, 0.5)
+		if reconnectCounts >= len(reconnectDelays) {
+			xl.Error("重连已失败 %d 次，客户端即将退出", reconnectCounts)
+			os.Exit(1)
 		}
-		reconnectCounts++
 
-		now := time.Now()
-		if now.After(cutoffTime) {
-			// reset
-			cutoffTime = now.Add(time.Minute)
-			reconnectDelay = time.Second
-			reconnectCounts = 1
-		}
+		wait := reconnectDelays[reconnectCounts]
+		xl.Info("第 %d 次重连，等待 %v 后尝试连接", reconnectCounts+1, wait)
+		time.Sleep(wait)
+		reconnectCounts++
 
 		for {
 			if atomic.LoadUint32(&svr.exit) != 0 {
@@ -227,18 +221,12 @@ func (svr *Service) keepControllerWorking() {
 			xl.Info("尝试重新连接至服务器")
 			conn, cm, err := svr.login()
 			if err != nil {
-				xl.Warn("重连失败: %v, 等待 %v 后重试", err, delayTime)
-				util.RandomSleep(delayTime, 0.9, 1.1)
-
-				delayTime *= 2
-				if delayTime > maxDelayTime {
-					delayTime = maxDelayTime
-				}
-				continue
+				xl.Warn("重连失败: %v", err)
+				break // 重连失败退出内层循环，进入下一次 retry
 			}
-			// reconnect success, init delayTime
-			delayTime = time.Second
 
+			// 成功重连
+			reconnectCounts = 0
 			ctl := NewControl(svr.ctx, svr.runID, conn, cm, svr.cfg, svr.pxyCfgs, svr.visitorCfgs, svr.authSetter)
 			ctl.Run()
 			svr.ctlMu.Lock()

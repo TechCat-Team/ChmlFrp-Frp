@@ -665,3 +665,18 @@ func (svr *Service) CloseUser(user string) error {
 	ctl.allShutdown.Start()
 	return nil
 }
+
+func (svr *Service) CloseUserProxy(user, proxyName string) error {
+	ctl, ok := svr.ctlManager.SearchByID(user)
+	if !ok || ctl == nil {
+		return fmt.Errorf("user not login")
+	}
+
+	err := ctl.CloseProxy(&msg.CloseProxy{
+		ProxyName: proxyName,
+	})
+	if err != nil {
+		return fmt.Errorf("close proxy failed: %v", err)
+	}
+	return nil
+}

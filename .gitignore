@@ -36,3 +36,7 @@ dist/
 
 # Cache
 *.swp
+
+#忽略本地调试文件
+build.bat
+frpc.ini

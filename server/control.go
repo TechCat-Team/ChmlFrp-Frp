@@ -670,37 +670,47 @@ func (ctl *Control) RegisterProxy(pxyMsg *msg.NewProxy) (remoteAddr string, err 
 	return
 }
 
-func (ctl *Control) CloseProxy(closeMsg *msg.CloseProxy) (err error) {
+// service.go 或 control.go
+func (ctl *Control) ForceCloseProxy(proxyName string) error {
 	ctl.mu.Lock()
-	pxy, ok := ctl.proxies[closeMsg.ProxyName]
+	defer ctl.mu.Unlock()
+
+	// 1. 查找匹配的 proxy（完全匹配）
+	pxy, ok := ctl.proxies[proxyName]
 	if !ok {
-		ctl.mu.Unlock()
-		return
+		log.Warn("ForceCloseProxy: Proxy %s not found for user %s", proxyName, ctl.loginMsg.User)
+		return fmt.Errorf("proxy %s not found", proxyName)
 	}
 
+	// 2. 更新已使用端口数
 	if ctl.serverCfg.MaxPortsPerClient > 0 {
 		ctl.portsUsedNum -= pxy.GetUsedPortsNum()
 	}
+
+	// 3. 关闭 proxy
 	pxy.Close()
-	ctl.pxyManager.Del(pxy.GetName())
-	delete(ctl.proxies, closeMsg.ProxyName)
-	ctl.mu.Unlock()
 
-	metrics.Server.CloseProxy(pxy.GetName(), pxy.GetConf().GetBaseConfig().ProxyType)
+	// 4. 删除 proxy 引用
+	ctl.pxyManager.Del(proxyName)
+	delete(ctl.proxies, proxyName)
 
-	notifyContent := &plugin.CloseProxyContent{
-		User: plugin.UserInfo{
-			User:  ctl.loginMsg.User,
-			Metas: ctl.loginMsg.Metas,
-			RunID: ctl.loginMsg.RunID,
-		},
-		CloseProxy: msg.CloseProxy{
-			ProxyName: pxy.GetName(),
-		},
-	}
+	// 5. 上报监控
+	metrics.Server.CloseProxy(proxyName, pxy.GetConf().GetBaseConfig().ProxyType)
+
+	// 6. 插件通知（如果启用插件系统）
 	go func() {
-		_ = ctl.pluginManager.CloseProxy(notifyContent)
+		_ = ctl.pluginManager.CloseProxy(&plugin.CloseProxyContent{
+			User: plugin.UserInfo{
+				User:  ctl.loginMsg.User,
+				Metas: ctl.loginMsg.Metas,
+				RunID: ctl.loginMsg.RunID,
+			},
+			CloseProxy: msg.CloseProxy{
+				ProxyName: proxyName,
+			},
+		})
 	}()
 
-	return
+	log.Info("ForceCloseProxy: Proxy %s closed for user %s", proxyName, ctl.loginMsg.User)
+	return nil
 }

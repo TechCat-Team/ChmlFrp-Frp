@@ -509,3 +509,61 @@ func (svr *Service) APICloseClient(w http.ResponseWriter, r *http.Request) {
 	buf, _ = json.Marshal(&resp)
 	w.Write(buf)
 }
+
+func (svr *Service) APIListUserProxies(w http.ResponseWriter, r *http.Request) {
+	params := mux.Vars(r)
+	user := params["user"]
+
+	ctl, ok := svr.ctlManager.SearchByID(user)
+	if !ok || ctl == nil {
+		http.Error(w, "User not login", http.StatusNotFound)
+		return
+	}
+
+	result := make([]string, 0)
+	ctl.mu.RLock()
+	for name := range ctl.proxies {
+		result = append(result, name)
+	}
+	ctl.mu.RUnlock()
+
+	// 返回当前用户的所有隧道名
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status": 200,
+		"proxies": result,
+	})
+}
+
+func (svr *Service) APICloseUserProxy(w http.ResponseWriter, r *http.Request) {
+	var (
+		buf  []byte
+		resp = CloseUserResp{}
+	)
+
+	params := mux.Vars(r)
+	user := params["user"]
+	proxy := params["proxy"]
+
+	log.Info("Http request: [/api/client/close/{user}/{proxy}] user: %s, proxy: %s", user, proxy)
+
+	ctl, ok := svr.ctlManager.SearchByID(user)
+	if !ok {
+		resp.Status = 404
+		resp.Msg = "user not login"
+		resp.runID = "nan"
+	} else {
+		err := ctl.ForceCloseProxy(proxy)
+		if err != nil {
+			resp.Status = 404
+			resp.Msg = err.Error()
+			resp.runID = user
+		} else {
+			resp.Status = 200
+			resp.Msg = "Proxy closed"
+			resp.runID = user
+		}
+	}
+
+	buf, _ = json.Marshal(&resp)
+	w.Write(buf)
+}
