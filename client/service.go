@@ -138,8 +138,10 @@ func (svr *Service) Run(ctx context.Context) error {
 				xl.Warn("无效的节点端口，如果您没有随意更改配置文件，请前往交流群提交问题。您可以暂时更换节点解决")
 			} else if strings.Contains(err.Error(), "token in login doesn't match token from configuration") {
 				xl.Warn("节点TOKEN错误，如果您没有随意更改配置文件，请前往交流群提交问题。您可以暂时更换节点解决")
-			} else if strings.Contains(err.Error(), "i/o deadline reached") {
+			} else if strings.Contains(err.Error(), "EOF") {
 				xl.Warn("请尝试将配置文件中tls_enable = false改为tls_enable = true再启动，如果依旧无法启动，则为上层防火墙拦截，请更换设备。")
+			} else if strings.Contains(err.Error(), "i/o deadline reached") {
+				xl.Warn("请尝试将配置文件中tls_enable = false改为tls_enable = true再启动，如果依旧无法启动，则为上层防火墙拦截，请更换设备。或更换节点。")
 			} else if strings.Contains(err.Error(), "dial tcp 127.0.0.1:7000: connectex: No connection could be made because the target machine actively refused it.") {
 				xl.Warn("您尚未更改配置文件，请更改配置文件(frpc.ini)后再启动隧道。更改完后需要按Ctrl+S保存。")
 			} else if strings.Contains(err.Error(), "connectex: No connection could be made because the target machine actively refused it.") {

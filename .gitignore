@@ -40,3 +40,8 @@ dist/
 #忽略本地调试文件
 build.bat
 frpc.ini
+frpc
+frpc.exe
+frps
+frps.exe
+frps.ini

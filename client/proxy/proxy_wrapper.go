@@ -129,17 +129,15 @@ func (pw *Wrapper) SetRunningStatus(remoteAddr string, respErr string) error {
 
 	pw.RemoteAddr = remoteAddr
 	if respErr != "" {
-		pw.Phase = ProxyPhaseStartErr
+		pw.Phase = ProxyPhaseClosed // 不再重试，直接关闭代理
 		pw.Err = respErr
-		pw.lastStartErr = time.Now()
 		return fmt.Errorf(pw.Err)
-	}
+	}	
 
 	if err := pw.pxy.Run(); err != nil {
 		pw.close()
-		pw.Phase = ProxyPhaseStartErr
+		pw.Phase = ProxyPhaseClosed // 也直接关闭
 		pw.Err = err.Error()
-		pw.lastStartErr = time.Now()
 		return err
 	}
 

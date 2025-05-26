@@ -678,7 +678,6 @@ func (ctl *Control) ForceCloseProxy(proxyName string) error {
 	// 1. 查找匹配的 proxy（完全匹配）
 	pxy, ok := ctl.proxies[proxyName]
 	if !ok {
-		log.Warn("ForceCloseProxy: Proxy %s not found for user %s", proxyName, ctl.loginMsg.User)
 		return fmt.Errorf("proxy %s not found", proxyName)
 	}
 
@@ -711,6 +710,40 @@ func (ctl *Control) ForceCloseProxy(proxyName string) error {
 		})
 	}()
 
-	log.Info("ForceCloseProxy: Proxy %s closed for user %s", proxyName, ctl.loginMsg.User)
 	return nil
+}
+
+func (ctl *Control) CloseProxy(closeMsg *msg.CloseProxy) (err error) {
+	ctl.mu.Lock()
+	pxy, ok := ctl.proxies[closeMsg.ProxyName]
+	if !ok {
+		ctl.mu.Unlock()
+		return
+	}
+
+	if ctl.serverCfg.MaxPortsPerClient > 0 {
+		ctl.portsUsedNum -= pxy.GetUsedPortsNum()
+	}
+	pxy.Close()
+	ctl.pxyManager.Del(pxy.GetName())
+	delete(ctl.proxies, closeMsg.ProxyName)
+	ctl.mu.Unlock()
+
+	metrics.Server.CloseProxy(pxy.GetName(), pxy.GetConf().GetBaseConfig().ProxyType)
+
+	notifyContent := &plugin.CloseProxyContent{
+		User: plugin.UserInfo{
+			User:  ctl.loginMsg.User,
+			Metas: ctl.loginMsg.Metas,
+			RunID: ctl.loginMsg.RunID,
+		},
+		CloseProxy: msg.CloseProxy{
+			ProxyName: pxy.GetName(),
+		},
+	}
+	go func() {
+		_ = ctl.pluginManager.CloseProxy(notifyContent)
+	}()
+
+	return
 }
