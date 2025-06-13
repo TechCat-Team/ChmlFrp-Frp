@@ -117,69 +117,69 @@ var rootCmd = &cobra.Command{
 	Use:   "frpc",
 	Short: "Edited from fatedier/frp, Powered by ChmlFrp",
 	RunE: func(cmd *cobra.Command, args []string) error {
-	if showVersion {
-		fmt.Println(version.Full())
-		return nil
-	}
-
-	log.Info("欢迎使用ChmlFrp映射客户端!")
-	var wg sync.WaitGroup
-
-	if cfgDir != "" {
-		_ = runMultipleClients(cfgDir)
-		return nil
-	}
-
-	log.Info("从ChmlFrp API获取配置文件...")
-	s, err := api.NewService("https://cf-v2.uapis.cn/cfg")
-	if err != nil {
-		log.Warn("初始化API服务失败，错误: %s", err)
-	}
-
-	if cfgToken != "" && cfgProxyid != "" {
-		var ids []string
-		if strings.Contains(cfgProxyid, ",") {
-			ids = strings.Split(cfgProxyid, ",")
-		} else {
-			ids = []string{cfgProxyid}
+		if showVersion {
+			fmt.Println(version.Full())
+			return nil
 		}
 
-		// 将多个 ID 传给 API，一次性返回完整配置
-		cfg, err := s.EZStartGetCfg(cfgToken, strings.Join(ids, ","))
+		log.Info("欢迎使用ChmlFrp映射客户端!")
+		var wg sync.WaitGroup
+
+		if cfgDir != "" {
+			_ = runMultipleClients(cfgDir)
+			return nil
+		}
+
+		log.Info("从ChmlFrp API获取配置文件...")
+		s, err := api.NewService("https://cf-v2.uapis.cn/cfg")
 		if err != nil {
-			log.Warn("获取配置文件失败，err: %s", err)
-			os.Exit(1)
+			log.Warn("初始化API服务失败，错误: %s", err)
 		}
 
-		// 写入 frpc.ini 文件（或 cfgFile 指定的文件）
-		file, err := os.OpenFile(cfgFile, os.O_RDWR|os.O_TRUNC|os.O_CREATE, 0777)
-		if err != nil {
-			log.Warn("打开文件失败，错误: %s", err)
-			os.Exit(1)
-		}
-		_, err = file.WriteString(cfg)
-		file.Close()
-		if err != nil {
-			log.Warn("写入配置文件失败, Err: %s", err)
-			os.Exit(1)
-		}
-		log.Info("已写入配置文件: %s", cfgFile)
+		if cfgToken != "" && cfgProxyid != "" {
+			var ids []string
+			if strings.Contains(cfgProxyid, ",") {
+				ids = strings.Split(cfgProxyid, ",")
+			} else {
+				ids = []string{cfgProxyid}
+			}
 
+			// 将多个 ID 传给 API，一次性返回完整配置
+			cfg, err := s.EZStartGetCfg(cfgToken, strings.Join(ids, ","))
+			if err != nil {
+				log.Warn("获取配置文件失败，err: %s", err)
+				os.Exit(1)
+			}
+
+			// 写入 frpc.ini 文件（或 cfgFile 指定的文件）
+			file, err := os.OpenFile(cfgFile, os.O_RDWR|os.O_TRUNC|os.O_CREATE, 0777)
+			if err != nil {
+				log.Warn("打开文件失败，错误: %s", err)
+				os.Exit(1)
+			}
+			_, err = file.WriteString(cfg)
+			file.Close()
+			if err != nil {
+				log.Warn("写入配置文件失败, Err: %s", err)
+				os.Exit(1)
+			}
+			log.Info("已写入配置文件: %s", cfgFile)
+
+			err = runClient(cfgFile, &wg)
+			if err != nil {
+				log.Warn("启动客户端失败: %s", err)
+				os.Exit(1)
+			}
+			return nil
+		}
+
+		// fallback
 		err = runClient(cfgFile, &wg)
 		if err != nil {
-			log.Warn("启动客户端失败: %s", err)
 			os.Exit(1)
 		}
 		return nil
-	}
-
-	// fallback
-	err = runClient(cfgFile, &wg)
-	if err != nil {
-		os.Exit(1)
-	}
-	return nil
-}
+	},
 }
 
 func runMultipleClients(cfgDir string) error {
