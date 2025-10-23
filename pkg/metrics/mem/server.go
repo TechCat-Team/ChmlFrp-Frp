@@ -21,6 +21,7 @@ import (
 	"github.com/fatedier/frp/pkg/util/log"
 	"github.com/fatedier/frp/pkg/util/metric"
 	server "github.com/fatedier/frp/server/metrics"
+	"github.com/shirou/gopsutil/net"
 )
 
 var (
@@ -28,12 +29,68 @@ var (
 
 	ServerMetrics  server.ServerMetrics
 	StatsCollector Collector
+
+	// Daily network traffic tracking
+	dailyNetTrafficMutex sync.Mutex
+	dailyStartTime       time.Time
+	dailyStartBytesRecv  int64
+	dailyStartBytesSent  int64
 )
 
 func init() {
 	ServerMetrics = sm
 	StatsCollector = sm
 	sm.run()
+	initDailyNetTraffic()
+}
+
+func initDailyNetTraffic() {
+	dailyNetTrafficMutex.Lock()
+	defer dailyNetTrafficMutex.Unlock()
+
+	now := time.Now()
+	dailyStartTime = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+
+	if netIO, err := net.IOCounters(false); err == nil && len(netIO) > 0 {
+		dailyStartBytesRecv = int64(netIO[0].BytesRecv)
+		dailyStartBytesSent = int64(netIO[0].BytesSent)
+	}
+}
+
+func getDailyNetTraffic() (int64, int64) {
+	dailyNetTrafficMutex.Lock()
+	defer dailyNetTrafficMutex.Unlock()
+
+	now := time.Now()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+
+	// If it's a new day, reset the daily counters
+	if today.After(dailyStartTime) {
+		initDailyNetTraffic()
+	}
+
+	if netIO, err := net.IOCounters(false); err == nil && len(netIO) > 0 {
+		currentBytesRecv := int64(netIO[0].BytesRecv)
+		currentBytesSent := int64(netIO[0].BytesSent)
+
+		// Calculate today's traffic by subtracting start-of-day values
+		todayBytesRecv := currentBytesRecv - dailyStartBytesRecv
+		todayBytesSent := currentBytesSent - dailyStartBytesSent
+
+		// Ensure non-negative values (in case of system restart)
+		if todayBytesRecv < 0 {
+			todayBytesRecv = currentBytesRecv
+			dailyStartBytesRecv = 0
+		}
+		if todayBytesSent < 0 {
+			todayBytesSent = currentBytesSent
+			dailyStartBytesSent = 0
+		}
+
+		return todayBytesRecv, todayBytesSent
+	}
+
+	return 0, 0
 }
 
 type serverMetrics struct {
@@ -184,9 +241,19 @@ func (m *serverMetrics) AddTrafficOut(name string, _ string, trafficBytes int64)
 func (m *serverMetrics) GetServer() *ServerStats {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
+	// Get daily system network statistics instead of proxy traffic aggregation
+	totalTrafficIn, totalTrafficOut := getDailyNetTraffic()
+
+	// If system stats are not available, fallback to proxy traffic
+	if totalTrafficIn == 0 && totalTrafficOut == 0 {
+		totalTrafficIn = m.info.TotalTrafficIn.TodayCount()
+		totalTrafficOut = m.info.TotalTrafficOut.TodayCount()
+	}
+
 	s := &ServerStats{
-		TotalTrafficIn:  m.info.TotalTrafficIn.TodayCount(),
-		TotalTrafficOut: m.info.TotalTrafficOut.TodayCount(),
+		TotalTrafficIn:  totalTrafficIn,
+		TotalTrafficOut: totalTrafficOut,
 		CurConns:        int64(m.info.CurConns.Count()),
 		ClientCounts:    int64(m.info.ClientCounts.Count()),
 		ProxyTypeCounts: make(map[string]int64),
