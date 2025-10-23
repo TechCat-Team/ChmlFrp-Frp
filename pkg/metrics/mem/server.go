@@ -15,6 +15,9 @@
 package mem
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -37,6 +40,20 @@ var (
 	dailyStartBytesSent  int64
 )
 
+// DailyTrafficRecord represents a daily traffic record for persistence
+type DailyTrafficRecord struct {
+	Date           string `json:"date"`       // YYYY-MM-DD format
+	StartTime      string `json:"start_time"` // ISO format
+	StartBytesRecv int64  `json:"start_bytes_recv"`
+	StartBytesSent int64  `json:"start_bytes_sent"`
+	TotalBytesRecv int64  `json:"total_bytes_recv"` // Accumulated traffic for the day
+	TotalBytesSent int64  `json:"total_bytes_sent"` // Accumulated traffic for the day
+}
+
+const (
+	trafficDataFile = "daily_traffic.json"
+)
+
 func init() {
 	ServerMetrics = sm
 	StatsCollector = sm
@@ -44,16 +61,79 @@ func init() {
 	initDailyNetTraffic()
 }
 
+func getTrafficDataFilePath() string {
+	// Try to get the executable directory, fallback to current directory
+	execPath, err := os.Executable()
+	if err != nil {
+		return trafficDataFile
+	}
+	return filepath.Join(filepath.Dir(execPath), trafficDataFile)
+}
+
+func loadDailyTrafficRecord() *DailyTrafficRecord {
+	filePath := getTrafficDataFilePath()
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil
+	}
+
+	var record DailyTrafficRecord
+	if err := json.Unmarshal(data, &record); err != nil {
+		log.Warn("Failed to parse daily traffic record: %v", err)
+		return nil
+	}
+
+	return &record
+}
+
+func saveDailyTrafficRecord(record *DailyTrafficRecord) {
+	filePath := getTrafficDataFilePath()
+	data, err := json.MarshalIndent(record, "", "  ")
+	if err != nil {
+		log.Warn("Failed to marshal daily traffic record: %v", err)
+		return
+	}
+
+	if err := os.WriteFile(filePath, data, 0644); err != nil {
+		log.Warn("Failed to save daily traffic record: %v", err)
+	}
+}
+
 func initDailyNetTraffic() {
 	dailyNetTrafficMutex.Lock()
 	defer dailyNetTrafficMutex.Unlock()
 
 	now := time.Now()
-	dailyStartTime = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 
+	// Try to load existing record for today
+	record := loadDailyTrafficRecord()
+	if record != nil && record.Date == today.Format("2006-01-02") {
+		// Use existing record for today
+		dailyStartTime = today
+		dailyStartBytesRecv = record.StartBytesRecv
+		dailyStartBytesSent = record.StartBytesSent
+		log.Info("Loaded existing daily traffic record for %s", record.Date)
+		return
+	}
+
+	// Create new record for today
+	dailyStartTime = today
 	if netIO, err := net.IOCounters(false); err == nil && len(netIO) > 0 {
 		dailyStartBytesRecv = int64(netIO[0].BytesRecv)
 		dailyStartBytesSent = int64(netIO[0].BytesSent)
+
+		// Save the new record
+		newRecord := &DailyTrafficRecord{
+			Date:           today.Format("2006-01-02"),
+			StartTime:      now.Format(time.RFC3339),
+			StartBytesRecv: dailyStartBytesRecv,
+			StartBytesSent: dailyStartBytesSent,
+			TotalBytesRecv: 0,
+			TotalBytesSent: 0,
+		}
+		saveDailyTrafficRecord(newRecord)
+		log.Info("Created new daily traffic record for %s", newRecord.Date)
 	}
 }
 
@@ -85,6 +165,19 @@ func getDailyNetTraffic() (int64, int64) {
 		if todayBytesSent < 0 {
 			todayBytesSent = currentBytesSent
 			dailyStartBytesSent = 0
+		}
+
+		// Update and save the daily record periodically (every 5 minutes)
+		if now.Minute()%5 == 0 && now.Second() < 5 {
+			record := &DailyTrafficRecord{
+				Date:           today.Format("2006-01-02"),
+				StartTime:      dailyStartTime.Format(time.RFC3339),
+				StartBytesRecv: dailyStartBytesRecv,
+				StartBytesSent: dailyStartBytesSent,
+				TotalBytesRecv: todayBytesRecv,
+				TotalBytesSent: todayBytesSent,
+			}
+			saveDailyTrafficRecord(record)
 		}
 
 		return todayBytesRecv, todayBytesSent

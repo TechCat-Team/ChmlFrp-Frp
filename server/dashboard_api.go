@@ -529,7 +529,7 @@ func (svr *Service) APIListUserProxies(w http.ResponseWriter, r *http.Request) {
 
 	// 返回当前用户的所有隧道名
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"status": 200,
+		"status":  200,
 		"proxies": result,
 	})
 }
