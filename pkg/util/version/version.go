@@ -19,7 +19,7 @@ import (
 	"strings"
 )
 
-var version = "ChmlFrp-0.51.2_240715"
+var version = "ChmlFrp-0.51.2_251023"
 
 func Full() string {
 	return version

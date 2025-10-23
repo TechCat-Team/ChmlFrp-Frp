@@ -34,9 +34,6 @@ const (
 		<title>ChmlFrp-无法找到您所请求的网站</title>
 		<link rel="stylesheet" href="https://chmlfrp.cn/frp/static/css/style.css">
 		<link rel="shortcut icon" href="https://chmlfrp.cn/favicon.ico" type="image/x-icon">
-		<script src="https://chmlfrp.cn/frp/static/js/prefixfree.min.js"></script>
-		<script src="https://chmlfrp.cn/frp/lz/js/jquery.min.js"></script>
-		<script src="https://chmlfrp.cn/frp/lz/js/script.js"></script>
 		<style>
 			body {
 				margin: 0;
@@ -57,9 +54,6 @@ const (
 		</style>
 	</head>
 	<body class="grid" style="overflow:hidden;">
-		<div id="canvasContainer">
-			<canvas id="myCanvas"></canvas>
-		</div>
 		<main class="grid" style="--n: 3; --k: 0">
 			<article class="grid" id="a0" style="--i: 0">
 				<h3 class="c--ini fade">ChmlFrp-错误警告</h3>
@@ -80,7 +74,7 @@ const (
 			</article>
 			<article class="grid" id="a1" style="--i: 1">
 				<h3 class="c--ini fade">可能的原因</h3>
-				<p class="c--ini fade">1：您尚未启动映射。2：错误的本地端口。3：错误的外网端口。4：映射协议错误。5：nginx或apache或iis错误</p><a
+				<p class="c--ini fade">1：您尚未启动映射。2：错误的本地端口。3：错误的外网端口。4：映射协议错误。5：您域名解析尚未生效或尚未更改</p><a
 					class="nav c--ini fade" href="https://chmlfrp.cn">Next</a>
 				<section class="grid c--fin" role="img" aria-label="错误页面随机图片"
 					style="--img: url(https://uapis.cn/api/imgapi/bq/maomao.php); --m: 8">
