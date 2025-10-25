@@ -102,7 +102,10 @@ func saveDailyTrafficRecord(record *DailyTrafficRecord) {
 func initDailyNetTraffic() {
 	dailyNetTrafficMutex.Lock()
 	defer dailyNetTrafficMutex.Unlock()
+	initDailyNetTrafficInternal()
+}
 
+func initDailyNetTrafficInternal() {
 	now := time.Now()
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 
@@ -146,7 +149,8 @@ func getDailyNetTraffic() (int64, int64) {
 
 	// If it's a new day, reset the daily counters
 	if today.After(dailyStartTime) {
-		initDailyNetTraffic()
+		// Call the internal version without locking to avoid deadlock
+		initDailyNetTrafficInternal()
 	}
 
 	if netIO, err := net.IOCounters(false); err == nil && len(netIO) > 0 {
@@ -167,9 +171,10 @@ func getDailyNetTraffic() (int64, int64) {
 			dailyStartBytesSent = 0
 		}
 
-		// Update and save the daily record periodically (every 5 minutes)
+		// Prepare record for saving (outside of lock to avoid blocking)
+		var recordToSave *DailyTrafficRecord
 		if now.Minute()%5 == 0 && now.Second() < 5 {
-			record := &DailyTrafficRecord{
+			recordToSave = &DailyTrafficRecord{
 				Date:           today.Format("2006-01-02"),
 				StartTime:      dailyStartTime.Format(time.RFC3339),
 				StartBytesRecv: dailyStartBytesRecv,
@@ -177,7 +182,11 @@ func getDailyNetTraffic() (int64, int64) {
 				TotalBytesRecv: todayBytesRecv,
 				TotalBytesSent: todayBytesSent,
 			}
-			saveDailyTrafficRecord(record)
+		}
+
+		// Save record outside of lock to avoid blocking
+		if recordToSave != nil {
+			go saveDailyTrafficRecord(recordToSave)
 		}
 
 		return todayBytesRecv, todayBytesSent
